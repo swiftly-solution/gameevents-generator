@@ -12,11 +12,14 @@ for (let i = 0; i < eventsContentSplitted.length; i++) {
 
 mkdirSync("output", { recursive: true })
 
-const GameEvents = []
+const GameEvents = ["std::map<std::string, std::string> gameEventsRegister = {"]
+const ignoreGameEvents = ["player_connect", "player_disconnect", "player_chat", "demo_stop"]
 
+let i = 0;
 for (const gameEvent of eventsContentSplitted) {
     const gameEventName = gameEvent[0]
     const gameEventData = gameEvent[1]
+    if (ignoreGameEvents.includes(gameEventName)) continue;
 
     const commentRegex = /comment={"(.*)"}/g.exec(gameEventData)
     const comment = `This event is triggered when ${commentRegex ? commentRegex[1] : `${gameEventName} is triggered`}`
@@ -26,42 +29,8 @@ for (const gameEvent of eventsContentSplitted) {
     const processedEventName = `On${gameEventName.split("_").map((a) => (a.charAt(0).toUpperCase() + a.slice(1))).join("")}`;
     if (eventFields.local) continue;
 
-    const fields = [];
-    for (const field of Object.keys(eventFields)) {
-        if (eventFields[field].value == "string") {
-            fields.push(`    eventData.push_back(msgpack::object(pEvent->GetString("${field}")));`)
-        } else if (eventFields[field].value == "short") {
-            fields.push(`    eventData.push_back(msgpack::object(pEvent->GetInt("${field}")));`)
-        } else if (eventFields[field].value == "long") {
-            fields.push(`    eventData.push_back(msgpack::object(pEvent->GetInt("${field}")));`)
-        } else if (eventFields[field].value == "bool") {
-            fields.push(`    eventData.push_back(msgpack::object(pEvent->GetBool("${field}")));`)
-        } else if (eventFields[field].value == "uint64") {
-            fields.push(`    eventData.push_back(msgpack::object(pEvent->GetUint64("${field}")));`)
-        } else if (eventFields[field].value == "playercontroller") {
-            fields.push(`    eventData.push_back(msgpack::object(pEvent->GetPlayerSlot("${field}").Get()));`)
-        } else if (eventFields[field].value == "player_pawn") {
-            fields.push(`    eventData.push_back(msgpack::object(pEvent->GetPlayerSlot("${field}").Get()));`)
-        } else if (eventFields[field].value == "byte") {
-            fields.push(`    eventData.push_back(msgpack::object(pEvent->GetInt("${field}")));`)
-        } else if (eventFields[field].value == "float") {
-            fields.push(`    eventData.push_back(msgpack::object(pEvent->GetFloat("${field}")));`)
-        }
-    }
-
-    GameEvents.push(`GAME_EVENT(${gameEventName})
-{
-    std::stringstream ss;
-    std::vector<msgpack::object> eventData;
-
-${fields.join("\n")}
-
-    msgpack::pack(ss, eventData);
-
-    PluginEvent *event = new PluginEvent("core", pEvent, nullptr);
-    g_pluginManager->ExecuteEvent("core", "${processedEventName}", ss.str(), event);
-    delete event;
-}`)
+    GameEvents.push(`    { "${gameEventName}", "${processedEventName}" },`)
 }
+GameEvents.push("};")
 
-writeFileSync("output/gameevents.cpp", readFileSync("data/template.cpp").toString().replace(/\[\[generated\]\]/g, GameEvents.join("\n\n")));
+writeFileSync("output/GGameEvents.h", readFileSync("data/template.h").toString().replace(/\[\[generated\]\]/g, GameEvents.join("\n")));
